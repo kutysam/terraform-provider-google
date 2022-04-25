@@ -529,6 +529,108 @@ func getManager(d *schema.ResourceData, meta interface{}) (*compute.InstanceGrou
 	return manager, nil
 }
 
+func resourceDataComputeInstanceGroupManagerRead(d *schema.ResourceData, meta interface{}) error {
+	config := meta.(*Config)
+	// userAgent, err := generateUserAgentString(d, config.userAgent)
+	// if err != nil {
+	// 	return err
+	// }
+
+	project, err := getProject(d, config)
+	if err != nil {
+		return err
+	}
+
+	// operation := d.Get("operation").(string)
+	// if operation != "" {
+	// 	log.Printf("[DEBUG] in progress operation detected at %v, attempting to resume", operation)
+	// 	zone, _ := getZone(d, config)
+	// 	op := &compute.Operation{
+	// 		Name: operation,
+	// 		Zone: zone,
+	// 	}
+	// 	if err := d.Set("operation", op.Name); err != nil {
+	// 		return fmt.Errorf("Error setting operation: %s", err)
+	// 	}
+	// 	err = computeOperationWaitTime(config, op, project, "Creating InstanceGroupManager", userAgent, d.Timeout(schema.TimeoutCreate))
+	// 	if err != nil {
+	// 		// remove from state to allow refresh to finish
+	// 		log.Printf("[DEBUG] Resumed operation returned an error, removing from state: %s", err)
+	// 		d.SetId("")
+	// 		return nil
+	// 	}
+	// }
+
+	manager, err := getManager(d, meta)
+	if err != nil {
+		return err
+	}
+	if manager == nil {
+		log.Printf("[WARN] Instance Group Manager %q not found, removing from state.", d.Id())
+		d.SetId("")
+		return nil
+	}
+
+	if err := d.Set("base_instance_name", manager.BaseInstanceName); err != nil {
+		return fmt.Errorf("Error setting base_instance_name: %s", err)
+	}
+	if err := d.Set("name", manager.Name); err != nil {
+		return fmt.Errorf("Error setting name: %s", err)
+	}
+	if err := d.Set("zone", GetResourceNameFromSelfLink(manager.Zone)); err != nil {
+		return fmt.Errorf("Error setting zone: %s", err)
+	}
+	if err := d.Set("description", manager.Description); err != nil {
+		return fmt.Errorf("Error setting description: %s", err)
+	}
+	if err := d.Set("project", project); err != nil {
+		return fmt.Errorf("Error setting project: %s", err)
+	}
+	if err := d.Set("target_size", manager.TargetSize); err != nil {
+		return fmt.Errorf("Error setting target_size: %s", err)
+	}
+	if err = d.Set("target_pools", mapStringArr(manager.TargetPools, ConvertSelfLinkToV1)); err != nil {
+		return fmt.Errorf("Error setting target_pools in state: %s", err.Error())
+	}
+	if err = d.Set("named_port", flattenNamedPortsBeta(manager.NamedPorts)); err != nil {
+		return fmt.Errorf("Error setting named_port in state: %s", err.Error())
+	}
+	if err = d.Set("stateful_disk", flattenStatefulPolicy(manager.StatefulPolicy)); err != nil {
+		return fmt.Errorf("Error setting stateful_disk in state: %s", err.Error())
+	}
+	if err := d.Set("fingerprint", manager.Fingerprint); err != nil {
+		return fmt.Errorf("Error setting fingerprint: %s", err)
+	}
+	if err := d.Set("instance_group", ConvertSelfLinkToV1(manager.InstanceGroup)); err != nil {
+		return fmt.Errorf("Error setting instance_group: %s", err)
+	}
+	if err := d.Set("self_link", ConvertSelfLinkToV1(manager.SelfLink)); err != nil {
+		return fmt.Errorf("Error setting self_link: %s", err)
+	}
+
+	if err = d.Set("auto_healing_policies", flattenAutoHealingPolicies(manager.AutoHealingPolicies)); err != nil {
+		return fmt.Errorf("Error setting auto_healing_policies in state: %s", err.Error())
+	}
+	if err := d.Set("version", flattenVersions(manager.Versions)); err != nil {
+		return err
+	}
+	if err = d.Set("update_policy", flattenUpdatePolicy(manager.UpdatePolicy)); err != nil {
+		return fmt.Errorf("Error setting update_policy in state: %s", err.Error())
+	}
+	if err = d.Set("status", flattenStatus(manager.Status)); err != nil {
+		return fmt.Errorf("Error setting status in state: %s", err.Error())
+	}
+
+	// If unset in state set to default value
+	if d.Get("wait_for_instances_status").(string) == "" {
+		if err := d.Set("wait_for_instances_status", "STABLE"); err != nil {
+			return fmt.Errorf("Error setting wait_for_instances_status in state: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
 func resourceComputeInstanceGroupManagerRead(d *schema.ResourceData, meta interface{}) error {
 	config := meta.(*Config)
 	userAgent, err := generateUserAgentString(d, config.userAgent)
